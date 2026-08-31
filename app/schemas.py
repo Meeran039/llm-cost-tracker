@@ -1,10 +1,26 @@
-from pydantic import BaseModel, EmailStr, ConfigDict
+import re
+from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 from datetime import datetime
 
 
 class SignupRequest(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters long.")
+        if not re.search(r"[a-z]", value):
+            raise ValueError("Password must include a lowercase letter.")
+        if not re.search(r"[A-Z]", value):
+            raise ValueError("Password must include an uppercase letter.")
+        if not re.search(r"\d", value):
+            raise ValueError("Password must include a number.")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", value):
+            raise ValueError("Password must include a special character.")
+        return value
 
 
 class LoginRequest(BaseModel):
