@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          ENCRYPTION_KEY: "kQ8rN2vX9pL4mZ7wJ1cF6bT3sA0dY5hU8gK2eR4nQ6w="
+          JWT_SECRET: "ci-test-secret-not-for-production"
+        run: python -m pytest tests/ -v
