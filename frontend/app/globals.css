@@ -1,0 +1,165 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Ledger semantic accents */
+  --color-brand: var(--brand);
+  --color-best: var(--best);
+  --color-mid: var(--mid);
+  --color-worst: var(--worst);
+  --color-panel: var(--panel);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', monospace;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+  color-scheme: dark;
+
+  --background: #0b1220;
+  --foreground: #e8e6df;
+
+  --panel: #101a2c;
+  --card: #101a2c;
+  --card-foreground: #e8e6df;
+  --popover: #101a2c;
+  --popover-foreground: #e8e6df;
+
+  --primary: #c9a227;
+  --primary-foreground: #0b1220;
+
+  --secondary: #17233a;
+  --secondary-foreground: #e8e6df;
+
+  --muted: #17233a;
+  --muted-foreground: #8b96ab;
+
+  --accent: #17233a;
+  --accent-foreground: #e8e6df;
+
+  --destructive: #f0554c;
+
+  --border: rgba(232, 230, 223, 0.1);
+  --input: rgba(232, 230, 223, 0.14);
+  --ring: #c9a227;
+
+  --brand: #c9a227;
+  --best: #34d399;
+  --mid: #f5a524;
+  --worst: #f0554c;
+
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'ss01';
+  }
+  /* Tabular figures for all monospace numbers so columns align */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+}
+
+@keyframes ledger-pop {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-ledger-pop {
+  animation: ledger-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes ticker-flash-up {
+  0% {
+    background-color: rgba(52, 211, 153, 0.14);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes ticker-flash-down {
+  0% {
+    background-color: rgba(240, 85, 76, 0.14);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.flash-up {
+  animation: ticker-flash-up 0.6s ease-out;
+}
+
+.flash-down {
+  animation: ticker-flash-down 0.6s ease-out;
+}
+
+/* Signature ticker tape: a horizontally scrolling marquee of model prices */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker-scroll 40s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker {
+    animation: none;
+  }
+}
+
+/* Faint grid texture used behind the hero for a "trading terminal" feel */
+.grid-texture {
+  background-image:
+    linear-gradient(to right, rgba(232, 230, 223, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(232, 230, 223, 0.04) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
