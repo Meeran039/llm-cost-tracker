@@ -20,8 +20,8 @@ export const MODELS: ModelSpec[] = [
   { provider: 'anthropic', model: 'claude-opus-5', label: 'Claude Opus 5', requiresKey: true },
   { provider: 'anthropic', model: 'claude-sonnet-5', label: 'Claude Sonnet 5', requiresKey: true },
   { provider: 'anthropic', model: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', requiresKey: true },
-  { provider: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', requiresKey: true },
-  { provider: 'groq', model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B', requiresKey: true },
+{ provider: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', requiresKey: false },
+{ provider: 'groq', model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B', requiresKey: false },
 ]
 
 export const PROVIDER_LABELS: Record<Provider, string> = {
@@ -42,6 +42,7 @@ export interface UsageLogResponse {
   prompt_tokens?: number
   fits_context_window?: boolean
   context_window?: number
+  approximate?: boolean
   [key: string]: unknown
 }
 export interface AuthUser {

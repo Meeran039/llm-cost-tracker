@@ -15,11 +15,37 @@ import { useAuth } from '@/lib/auth-context'
 import { useDebounce } from '@/hooks/use-debounce'
 import { LeaderboardRow, type RowData, type Tier } from './leaderboard-row'
 
+function humanizeApiError(rawError: string): string {
+  if (rawError.includes('invalid x-api-key') || rawError.includes('authentication_error')) {
+    return "This key was rejected. Double-check you pasted your real Anthropic API key correctly."
+  }
+  if (rawError.includes('401')) {
+    return "This key was rejected by the provider."
+  }
+  if (rawError.includes('provider must be')) {
+    return "This model isn't supported yet."
+  }
+  return "Couldn't price this model right now."
+}
+
 const SAMPLE_PROMPT =
   'You are a senior financial analyst. Summarize the attached quarterly earnings report into five bullet points, then draft a short email to the CFO highlighting the biggest risk and one recommended action.'
 
 function keyOf(provider: string, model: string) {
   return `${provider}:${model}`
+}
+
+function humanizeApiError(rawError: string): string {
+  if (rawError.includes('invalid x-api-key') || rawError.includes('authentication_error')) {
+    return "This key was rejected. Double-check you pasted your real Anthropic API key correctly."
+  }
+  if (rawError.includes('401')) {
+    return "This key was rejected by the provider."
+  }
+  if (rawError.includes('provider must be')) {
+    return "This model isn't supported yet."
+  }
+  return "Couldn't price this model right now."
 }
 
 function initialRows(): Record<string, RowData> {
@@ -36,6 +62,7 @@ function initialRows(): Record<string, RowData> {
       outputTokens: null,
       contextWindow: null,
       error: null,
+      approximate: false,
     }
   }
   return map
@@ -52,7 +79,6 @@ export function CostPlayground() {
   const debouncedPrompt = useDebounce(prompt, 400)
   const debouncedOutput = useDebounce(expectedOutput, 400)
 
-  // Discover which providers have a connected key so we can price them live.
   useEffect(() => {
     if (!token) {
       setConnectedProviders(new Set())
@@ -82,7 +108,6 @@ export function CostPlayground() {
     [connectedProviders],
   )
 
-  // Recompute costs whenever the debounced prompt, output size, or auth changes.
   useEffect(() => {
     abortRef.current?.abort()
 
@@ -101,7 +126,6 @@ export function CostPlayground() {
     const controller = new AbortController()
     abortRef.current = controller
 
-    // Mark computable rows loading (keep last cost for stable ordering); lock the rest.
     setRows((prev) => {
       const next = { ...prev }
       for (const m of MODELS) {
@@ -148,6 +172,7 @@ export function CostPlayground() {
               outputTokens: typeof res.output_tokens === 'number' ? res.output_tokens : debouncedOutput,
               contextWindow: typeof res.context_window === 'number' ? res.context_window : null,
               error: null,
+              approximate: res.approximate === true,
             },
           }))
         })
@@ -155,7 +180,7 @@ export function CostPlayground() {
           if (controller.signal.aborted || err?.name === 'AbortError') return
           setRows((prev) => ({
             ...prev,
-            [k]: { ...prev[k], status: 'error', error: err?.message ?? 'Failed to price' },
+            [k]: { ...prev[k], status: 'error', error: humanizeApiError(err?.message ?? '') },
           }))
         })
     }
@@ -168,7 +193,6 @@ export function CostPlayground() {
     const locked = all.filter((r) => r.status === 'locked')
     const active = all.filter((r) => r.status !== 'locked')
 
-    // Sort active rows: priced rows by cost asc, unfit sink, idle/error/loading keep near last cost.
     const sortValue = (r: RowData) => {
       if (r.status === 'unfit') return Number.MAX_SAFE_INTEGER - 1
       if (r.cost !== null) return r.cost
@@ -197,7 +221,6 @@ export function CostPlayground() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-      {/* Prompt input */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <label htmlFor="prompt" className="text-sm font-medium text-muted-foreground">
@@ -242,7 +265,6 @@ export function CostPlayground() {
         </div>
       </div>
 
-      {/* Leaderboard */}
       <div className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <h2 className="font-serif text-lg font-semibold">Cost leaderboard</h2>

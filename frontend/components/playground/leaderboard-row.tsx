@@ -16,7 +16,7 @@ export type Tier = 'best' | 'mid' | 'worst' | null
 
 export interface RowData {
   key: string
-  provider: Provider
+  provider: string
   label: string
   model: string
   status: RowStatus
@@ -25,6 +25,7 @@ export interface RowData {
   outputTokens: number | null
   contextWindow: number | null
   error: string | null
+  approximate: boolean
 }
 
 const TIER_STYLES: Record<'best' | 'mid' | 'worst', { text: string; dot: string; bar: string }> = {
@@ -103,7 +104,7 @@ export function LeaderboardRow({ row, rank, tier, ratio }: Props) {
             )}
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-            <span className={cn(isLocked && 'blur-[3px] select-none')}>{PROVIDER_LABELS[row.provider]}</span>
+            <span className={cn(isLocked && 'blur-[3px] select-none')}>{PROVIDER_LABELS[row.provider as Provider]}</span>
             {row.status === 'ok' && row.inputTokens !== null && (
               <span className="font-mono tabular-nums">
                 {formatTokens(row.inputTokens)} in
@@ -120,7 +121,7 @@ export function LeaderboardRow({ row, rank, tier, ratio }: Props) {
         </div>
 
         {/* right column: cost / lock / spinner */}
-        <div className="flex shrink-0 items-center justify-end">
+        <div className="flex shrink-0 items-center justify-end gap-1.5">
           {isLocked ? (
             <Link
               href="/auth?mode=signup"
@@ -134,14 +135,24 @@ export function LeaderboardRow({ row, rank, tier, ratio }: Props) {
               <span className="inline-block animate-pulse">calculating…</span>
             </span>
           ) : row.status === 'ok' && row.cost !== null ? (
-            <span
-              className={cn(
-                'font-mono text-base font-semibold tabular-nums sm:text-lg',
-                tierStyle ? tierStyle.text : 'text-foreground',
+            <>
+              {row.approximate && (
+                <span
+                  className="rounded-full border border-muted-foreground/30 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground"
+                  title="Estimated using a similar tokenizer, exact counts aren't available for this provider"
+                >
+                  ~approx
+                </span>
               )}
-            >
-              {formatCost(row.cost)}
-            </span>
+              <span
+                className={cn(
+                  'font-mono text-base font-semibold tabular-nums sm:text-lg',
+                  tierStyle ? tierStyle.text : 'text-foreground',
+                )}
+              >
+                {formatCost(row.cost)}
+              </span>
+            </>
           ) : isUnfit ? (
             <span className="font-mono text-sm tabular-nums text-worst">n/a</span>
           ) : (

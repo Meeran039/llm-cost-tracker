@@ -11,12 +11,13 @@ from app.routers.auth import get_current_user
 from app.pricing import calculate_cost, fits_context_window, UnknownModelError
 from app.tokenizers.openai_tokenizer import count_openai_tokens
 from app.tokenizers.anthropic_tokenizer import count_anthropic_tokens, AnthropicTokenizerError
+from app.tokenizers.groq_tokenizer import count_llama_tokens_approximate
 
 router = APIRouter(prefix="/usage", tags=["usage"])
 
 
 class LogUsageRequest(BaseModel):
-    provider: str
+    provider: str  # "openai" | "anthropic" | "groq"
     model: str
     prompt: str
     expected_output_tokens: int = 0
@@ -29,11 +30,16 @@ class LogUsageResponse(BaseModel):
     output_tokens: int
     cost_usd: float
     fits_context_window: bool
+    approximate: bool = False  # True for Groq/Llama -- see groq_tokenizer.py for why
 
 
-def _get_input_tokens(provider: str, model: str, prompt: str, db: Session, user_id: int) -> int:
+def _get_input_tokens(provider: str, model: str, prompt: str, db: Session, user_id: int) -> tuple[int, bool]:
+    """Returns (token_count, is_approximate)."""
     if provider == "openai":
-        return count_openai_tokens(model, prompt)
+        return count_openai_tokens(model, prompt), False
+
+    if provider == "groq":
+        return count_llama_tokens_approximate(prompt), True
 
     if provider == "anthropic":
         key_row = (
@@ -48,11 +54,11 @@ def _get_input_tokens(provider: str, model: str, prompt: str, db: Session, user_
             )
         api_key = decrypt_provider_key(key_row.encrypted_key)
         try:
-            return count_anthropic_tokens(api_key, model, prompt)
+            return count_anthropic_tokens(api_key, model, prompt), False
         except AnthropicTokenizerError as e:
             raise HTTPException(status_code=401, detail=str(e))
 
-    raise HTTPException(status_code=400, detail="provider must be 'openai' or 'anthropic'")
+    raise HTTPException(status_code=400, detail="provider must be 'openai', 'anthropic', or 'groq'")
 
 
 @router.post("/log", response_model=LogUsageResponse)
@@ -62,7 +68,7 @@ def log_usage(
     db: Session = Depends(get_db),
 ):
     try:
-        input_tokens = _get_input_tokens(req.provider, req.model, req.prompt, db, current_user.id)
+        input_tokens, is_approximate = _get_input_tokens(req.provider, req.model, req.prompt, db, current_user.id)
         total_tokens = input_tokens + req.expected_output_tokens
         cost = calculate_cost(req.model, input_tokens, req.expected_output_tokens)
         within_window = fits_context_window(req.model, total_tokens)
@@ -85,4 +91,5 @@ def log_usage(
         output_tokens=req.expected_output_tokens,
         cost_usd=cost,
         fits_context_window=within_window,
+        approximate=is_approximate,
     )
