@@ -15,7 +15,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://ledger.v0.build",
+        "https://llm-cost-tracker-ten.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
