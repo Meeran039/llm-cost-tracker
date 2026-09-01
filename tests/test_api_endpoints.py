@@ -1,14 +1,14 @@
 """
-End-to-end tests for the API endpoints themselves (auth, keys, usage,
-api-keys), using FastAPI's TestClient against a fresh, isolated SQLite
-database that is dropped and recreated between every test.
+End-to-end tests for the API endpoints themselves (auth, keys, usage
+logging, advisor), using FastAPI's TestClient against a fresh, isolated
+SQLite database that is dropped and recreated between every test.
 
 This complements the other test files (test_security.py tests the
-crypto/hashing primitives in isolation; test_openai_client.py and
-test_anthropic_client.py test the provider HTTP clients in isolation;
-test_mcp_server.py tests MCP auth and the summary tool). This file is
-the one that actually exercises the endpoints a real frontend calls,
-proving the whole request/response chain works, not just its parts.
+crypto/hashing primitives in isolation; test_cost_advisor.py tests
+pricing, tokenizers, and the two agents in isolation; test_mcp_server.py
+tests MCP auth and the summary tool). This file exercises the actual
+endpoints a real frontend calls, proving the whole request/response
+chain works, not just its parts.
 """
 
 import os
@@ -17,7 +17,7 @@ os.environ.setdefault("JWT_SECRET", "test-only-jwt-secret-not-for-production")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_api_endpoints.db")
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from main import app
@@ -121,66 +121,79 @@ class TestProviderKeys:
 
 
 class TestUsageEndpoints:
-    def test_usage_without_connected_key_returns_404(self):
+    def test_log_usage_without_anthropic_key_returns_404(self):
         headers = signup_and_login("l@example.com")
-        r = client.get("/usage/openai", headers=headers)
+        r = client.post("/usage/log", json={
+            "provider": "anthropic", "model": "claude-haiku-4-5", "prompt": "test"
+        }, headers=headers)
         assert r.status_code == 404
 
-    def test_usage_openai_with_mocked_provider_call(self):
+    def test_log_usage_openai_computes_real_cost(self):
+        """OpenAI's tokenizer is local -- no mocking needed, this is a real calculation."""
         headers = signup_and_login("m@example.com")
-        client.post("/keys", json={"provider": "openai", "api_key": "sk-fake"}, headers=headers)
-
-        with patch(
-            "app.routers.usage.get_openai_costs",
-            return_value=[{"date": "2026-08-27", "cost_usd": 4.5}],
-        ):
-            r = client.get("/usage/openai", headers=headers)
-
-        assert r.status_code == 200
-        assert r.json()["total_cost_usd"] == 4.5
-
-    def test_summary_aggregates_across_both_providers(self):
-        headers = signup_and_login("n@example.com")
-        client.post("/keys", json={"provider": "openai", "api_key": "sk-fake"}, headers=headers)
-        client.post("/keys", json={"provider": "anthropic", "api_key": "sk-ant-fake"}, headers=headers)
-
-        with patch(
-            "app.routers.usage.get_openai_costs",
-            return_value=[{"date": "2026-08-27", "cost_usd": 10.0}],
-        ):
-            client.get("/usage/openai", headers=headers)
-
-        with patch(
-            "app.routers.usage.get_anthropic_costs",
-            return_value=[{"date": "2026-08-27", "cost_usd": 5.0}],
-        ):
-            client.get("/usage/anthropic", headers=headers)
-
-        r = client.get("/usage/summary", headers=headers)
+        r = client.post("/usage/log", json={
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "prompt": "Hello, this is a test prompt for token counting.",
+            "expected_output_tokens": 50,
+        }, headers=headers)
         assert r.status_code == 200
         data = r.json()
-        assert data["total_cost_usd"] == 15.0
-        assert data["by_provider"]["openai"] == 10.0
-        assert data["by_provider"]["anthropic"] == 5.0
+        assert data["input_tokens"] > 0
+        assert data["cost_usd"] > 0
+        assert data["fits_context_window"] is True
 
-    def test_repeated_refresh_does_not_duplicate_cached_rows(self):
+    def test_log_usage_anthropic_with_mocked_tokenizer(self):
+        headers = signup_and_login("n@example.com")
+        client.post("/keys", json={"provider": "anthropic", "api_key": "sk-ant-fake"}, headers=headers)
+
+        with patch("app.routers.usage_log.count_anthropic_tokens", return_value=100):
+            r = client.post("/usage/log", json={
+                "provider": "anthropic", "model": "claude-haiku-4-5",
+                "prompt": "test", "expected_output_tokens": 50,
+            }, headers=headers)
+
+        assert r.status_code == 200
+        assert r.json()["input_tokens"] == 100
+
+    def test_log_usage_unknown_model_returns_400(self):
         headers = signup_and_login("o@example.com")
-        client.post("/keys", json={"provider": "openai", "api_key": "sk-fake"}, headers=headers)
+        r = client.post("/usage/log", json={
+            "provider": "openai", "model": "not-a-real-model", "prompt": "test"
+        }, headers=headers)
+        assert r.status_code == 400
 
-        with patch(
-            "app.routers.usage.get_openai_costs",
-            return_value=[{"date": "2026-08-27", "cost_usd": 4.5}],
-        ):
-            client.get("/usage/openai", headers=headers)
-            r = client.get("/usage/openai", headers=headers)
 
-        assert len(r.json()["daily"]) == 1
-        assert r.json()["total_cost_usd"] == 4.5
+class TestAdvisorEndpoint:
+    def test_advisor_with_no_usage_gives_helpful_message(self):
+        headers = signup_and_login("p@example.com")
+        r = client.get("/advisor", headers=headers)
+        assert r.status_code == 200
+        assert "No usage logged" in r.json()["recommendation"]
+
+    def test_advisor_reflects_logged_usage(self):
+        headers = signup_and_login("q@example.com")
+        client.post("/usage/log", json={
+            "provider": "openai", "model": "gpt-4o-mini",
+            "prompt": "test prompt", "expected_output_tokens": 50,
+        }, headers=headers)
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content="You're spending efficiently."))]
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("app.agents.recommender.Groq", return_value=mock_client):
+            r = client.get("/advisor", headers=headers)
+
+        assert r.status_code == 200
+        assert r.json()["pattern"]["total_calls"] == 1
+        assert r.json()["recommendation"] == "You're spending efficiently."
 
 
 class TestMCPApiKeyEndpoint:
     def test_generated_key_has_expected_format_and_is_shown_once(self):
-        headers = signup_and_login("p@example.com")
+        headers = signup_and_login("r@example.com")
         r = client.post("/api-keys", json={"label": "Claude Desktop"}, headers=headers)
         assert r.status_code == 201
         assert r.json()["raw_key"].startswith("llmck_")
