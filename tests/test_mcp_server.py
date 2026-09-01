@@ -1,8 +1,6 @@
 """
-Tests the MCP authentication path and the get_usage_summary tool.
-Uses a fresh SQLite file per test run via conftest-less setup (env vars
-are set before any app module is imported, matching the pattern used
-in test_security.py).
+Tests the MCP authentication path, the get_usage_summary tool, and the
+get_cost_advice tool.
 """
 
 import os
@@ -16,7 +14,7 @@ from datetime import datetime, timezone
 from app.database import Base, engine, SessionLocal
 from app.models import User, ApiKey, UsageRecord
 from app.security import hash_password, generate_mcp_api_key, hash_mcp_api_key, authenticate_mcp_api_key
-from app.mcp_server import get_usage_summary
+from app.mcp_server import get_usage_summary, get_cost_advice
 
 
 @pytest.fixture(autouse=True)
@@ -101,6 +99,37 @@ class TestUsageSummaryTool:
         _, raw_key = user_with_api_key
         result = get_usage_summary(api_key=raw_key, days=30)
         assert "No usage data found" in result
+
+
+class TestCostAdviceTool:
+    def test_invalid_key_gives_clear_message(self, db):
+        result = get_cost_advice(api_key="llmck_wrong")
+        assert "Invalid API key" in result
+
+    def test_no_usage_gives_helpful_message_without_calling_llm(self, db, user_with_api_key):
+        _, raw_key = user_with_api_key
+        result = get_cost_advice(api_key=raw_key)
+        assert "No usage logged" in result
+
+    def test_returns_llm_recommendation_for_real_usage(self, db, user_with_api_key):
+        from unittest.mock import patch, MagicMock
+
+        user, raw_key = user_with_api_key
+        db.add(UsageRecord(
+            user_id=user.id, provider="openai",
+            date=datetime.now(timezone.utc), cost_usd=12.0, tokens=3000,
+        ))
+        db.commit()
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content="Try a cheaper model."))]
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("app.agents.recommender.Groq", return_value=mock_client):
+            result = get_cost_advice(api_key=raw_key)
+
+        assert result == "Try a cheaper model."
 
 
 if __name__ == "__main__":
