@@ -19,9 +19,11 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
+        working-directory: backend
         run: pip install -r requirements.txt
 
       - name: Run tests
+        working-directory: backend
         env:
           ENCRYPTION_KEY: "kQ8rN2vX9pL4mZ7wJ1cF6bT3sA0dY5hU8gK2eR4nQ6w="
           JWT_SECRET: "ci-test-secret-not-for-production"
