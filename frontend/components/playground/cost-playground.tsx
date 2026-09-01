@@ -15,18 +15,7 @@ import { useAuth } from '@/lib/auth-context'
 import { useDebounce } from '@/hooks/use-debounce'
 import { LeaderboardRow, type RowData, type Tier } from './leaderboard-row'
 
-function humanizeApiError(rawError: string): string {
-  if (rawError.includes('invalid x-api-key') || rawError.includes('authentication_error')) {
-    return "This key was rejected. Double-check you pasted your real Anthropic API key correctly."
-  }
-  if (rawError.includes('401')) {
-    return "This key was rejected by the provider."
-  }
-  if (rawError.includes('provider must be')) {
-    return "This model isn't supported yet."
-  }
-  return "Couldn't price this model right now."
-}
+
 
 const SAMPLE_PROMPT =
   'You are a senior financial analyst. Summarize the attached quarterly earnings report into five bullet points, then draft a short email to the CFO highlighting the biggest risk and one recommended action.'
@@ -295,4 +284,4 @@ export function CostPlayground() {
       </div>
     </div>
   )
-}
+}//Final Version
