@@ -2,9 +2,6 @@
 
 A full-stack tool that tells you what an LLM prompt will cost across OpenAI, Anthropic, and Groq models, logs your usage, and uses an AI advisor to point out where you might be overspending.
 
-**Live demo:** https://llm-cost-tracker-ten.vercel.app
-**API:** https://llm-cost-tracker.onrender.com (free tier, so the first request after idle can take 30 to 60 seconds)
-
 ## The problem
 
 Teams using LLMs often do not know what they are spending until the bill arrives. Checking spend programmatically through the providers is also harder than it looks: OpenAI and Anthropic only expose cost data through organization-level Admin API keys, and Groq exposes no usage API at all. Most individual developers cannot get that access.
